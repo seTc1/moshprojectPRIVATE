@@ -331,51 +331,71 @@ class DatabaseManager:
         c = self.conn.cursor()
         c.execute("SELECT id, name, seats FROM programs")
         programmes = c.fetchall()
-        # Prepare data structures
-        prog_info: Dict[int, Dict[str, Union[str, int, List[Tuple[int, int]]]]] = {}
+
+        # Keep per-programme metadata and admitted applicants.
+        prog_info: Dict[int, Dict[str, Union[str, int, List[Tuple[int, int, int]]]]] = {}
         for pid, pname, seats in programmes:
             prog_info[pid] = {
                 'name': pname,
                 'seats': seats,
-                'admitted': [],  # list of (applicant_id, total)
+                # list of tuples: (applicant_id, total, priority)
+                'admitted': [],
             }
-        # Retrieve all consented applications for the day ordered by
-        # priority then by total score descending
+
+        # Retrieve all consented applications for this day.
         c.execute(
             """
             SELECT applicant_id, program_id, priority, total
             FROM applications
             WHERE day = ? AND consent = 1
-            ORDER BY priority ASC, total DESC
             """,
             (day,),
         )
         rows = c.fetchall()
-        admitted_global: set[int] = set()  # applicants admitted to any programme
+
+        # Group rows by priority and programme so that allocation is
+        # done in true cascade stages: first all P1 candidates, then P2, etc.
+        by_priority: Dict[int, Dict[int, List[Tuple[int, int]]]] = {1: {}, 2: {}, 3: {}, 4: {}}
         for applicant_id, program_id, priority, total in rows:
-            info = prog_info.get(program_id)
-            if info is None:
-                continue  # unknown programme, skip
-            # Skip if programme is already full
-            if len(info['admitted']) >= info['seats']:
+            if priority not in by_priority:
                 continue
-            # Skip if applicant already admitted to a higher priority programme
-            if applicant_id in admitted_global:
-                continue
-            # Admit the applicant
-            info['admitted'].append((applicant_id, total))
-            admitted_global.add(applicant_id)
-        # Construct result mapping
+            by_priority[priority].setdefault(program_id, []).append((applicant_id, total))
+
+        admitted_global: set[int] = set()
+
+        for priority in [1, 2, 3, 4]:
+            for program_id, candidates in by_priority[priority].items():
+                info = prog_info.get(program_id)
+                if info is None:
+                    continue
+                seats = int(info['seats'])
+                admitted = info['admitted']
+                remaining = seats - len(admitted)
+                if remaining <= 0:
+                    continue
+
+                # Stable deterministic order: highest total first, then lower applicant ID.
+                candidates_sorted = sorted(candidates, key=lambda x: (-x[1], x[0]))
+                for applicant_id, total in candidates_sorted:
+                    if remaining <= 0:
+                        break
+                    if applicant_id in admitted_global:
+                        continue
+                    admitted.append((applicant_id, total, priority))
+                    admitted_global.add(applicant_id)
+                    remaining -= 1
+
+        # Construct result mapping.
         result: Dict[str, Tuple[Union[int, str], List[int]]] = {}
-        for pid, info in prog_info.items():
+        for _, info in prog_info.items():
             admitted_list = sorted(info['admitted'], key=lambda x: (-x[1], x[0]))
-            # Determine passing score
-            if len(admitted_list) >= info['seats'] and info['seats'] > 0:
-                passing_score = admitted_list[info['seats'] - 1][1]
+            seats = int(info['seats'])
+            if len(admitted_list) >= seats and seats > 0:
+                passing_score = admitted_list[seats - 1][1]
             else:
                 passing_score = "НЕДОБОР"
-            result[info['name']] = (
+            result[str(info['name'])] = (
                 passing_score,
-                [aid for (aid, _) in admitted_list],
+                [aid for (aid, _, _) in admitted_list],
             )
         return result

@@ -46,7 +46,7 @@ class ReportGenerator:
         if not days:
             # No data present; create an empty figure
             fig, ax = plt.subplots()
-            ax.set_title("No admissions data available")
+            ax.set_title("Данные о приёме отсутствуют")
             fig.savefig(output_path)
             plt.close(fig)
             return
@@ -65,9 +65,9 @@ class ReportGenerator:
                 # Plot 0 for недобор so that the line can still be drawn
                 y_vals.append(score if isinstance(score, (int, float)) else 0)
             ax.plot(days, y_vals, marker='o', label=pname)
-        ax.set_xlabel('Day of campaign')
-        ax.set_ylabel('Passing score')
-        ax.set_title('Passing score dynamics')
+        ax.set_xlabel('День кампании')
+        ax.set_ylabel('Проходной балл')
+        ax.set_title('Динамика проходных баллов')
         ax.legend()
         fig.tight_layout()
         fig.savefig(output_path)
@@ -100,15 +100,15 @@ class ReportGenerator:
         # First page: summary
         pdf.add_page()
         pdf.set_font('Arial', 'B', 16)
-        pdf.cell(0, 10, f'Admission Report for {day}', ln=True, align='C')
+        pdf.cell(0, 10, f'Отчёт о приёмной кампании за {day}', ln=True, align='C')
         pdf.ln(4)
         pdf.set_font('Arial', '', 12)
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        pdf.cell(0, 8, f'Report generated: {now_str}', ln=True)
+        pdf.cell(0, 8, f'Отчёт сформирован: {now_str}', ln=True)
         pdf.ln(2)
-        # Passing scores table
+        # Таблица проходных баллов
         pdf.set_font('Arial', 'B', 12)
-        pdf.cell(0, 8, f'Passing scores on {day}:', ln=True)
+        pdf.cell(0, 8, f'Проходные баллы на {day}:', ln=True)
         pdf.set_font('Arial', '', 12)
         for pname in programme_names:
             score, _ = passing_scores[pname]
@@ -123,30 +123,30 @@ class ReportGenerator:
         pdf.add_page()
         # Second page: admitted lists
         pdf.set_font('Arial', 'B', 14)
-        pdf.cell(0, 10, f'Admitted applicants on {day}', ln=True)
+        pdf.cell(0, 10, f'Списки зачисленных на {day}', ln=True)
         pdf.ln(4)
         pdf.set_font('Arial', 'B', 12)
         for pname in programme_names:
             score, admitted_ids = passing_scores[pname]
-            pdf.cell(0, 8, f'{pname} (admitted: {len(admitted_ids)})', ln=True)
+            pdf.cell(0, 8, f'{pname} (зачислено: {len(admitted_ids)})', ln=True)
             pdf.set_font('Arial', '', 10)
             if admitted_ids:
                 # Join IDs into a comma separated string; wrap at reasonable length
                 id_str = ', '.join(str(aid) for aid in admitted_ids)
                 pdf.multi_cell(0, 5, id_str)
             else:
-                pdf.multi_cell(0, 5, 'No admitted applicants')
+                pdf.multi_cell(0, 5, 'Нет зачисленных')
             pdf.ln(2)
             pdf.set_font('Arial', 'B', 12)
         pdf.add_page()
         # Third page: statistics table
         pdf.set_font('Arial', 'B', 14)
-        pdf.cell(0, 10, f'Admissions statistics on {day}', ln=True)
+        pdf.cell(0, 10, f'Статистика приёма на {day}', ln=True)
         pdf.ln(4)
         # Build the statistics table header
         headers = [
-            'Program', 'Total', 'Seats', 'P1', 'P2', 'P3', 'P4',
-            'AdmP1', 'AdmP2', 'AdmP3', 'AdmP4'
+            'Напр.', 'Всего', 'Места', 'П1', 'П2', 'П3', 'П4',
+            'ЗачП1', 'ЗачП2', 'ЗачП3', 'ЗачП4'
         ]
         # Determine column widths based on page width
         table_width = pdf.w - 2 * pdf.l_margin
