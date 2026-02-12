@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, db: DatabaseManager) -> None:
         super().__init__()
-        self.setWindowTitle("Admissions Analysis")
+        self.setWindowTitle("Анализ приёмной кампании")
         self.db = db
         self.reporter = ReportGenerator(db)
         # Main container widget
@@ -84,28 +84,28 @@ class MainWindow(QMainWindow):
         ctrl_layout = QHBoxLayout()
         layout.addLayout(ctrl_layout)
 
-        ctrl_layout.addWidget(QLabel("Programme:"))
+        ctrl_layout.addWidget(QLabel("Направление:"))
         self.program_combo = QComboBox()
         self._populate_programmes()
         self.program_combo.currentIndexChanged.connect(self.refresh_table)
         ctrl_layout.addWidget(self.program_combo)
 
-        ctrl_layout.addWidget(QLabel("Day:"))
+        ctrl_layout.addWidget(QLabel("День:"))
         self.day_combo = QComboBox()
         self._populate_days()
         self.day_combo.currentIndexChanged.connect(self.refresh_table)
         ctrl_layout.addWidget(self.day_combo)
 
         # Action buttons
-        self.load_button = QPushButton("Load CSV…")
+        self.load_button = QPushButton("Загрузить CSV…")
         self.load_button.clicked.connect(self.load_csv)
         ctrl_layout.addWidget(self.load_button)
 
-        self.compute_button = QPushButton("Compute Passing Scores")
+        self.compute_button = QPushButton("Рассчитать проходные баллы")
         self.compute_button.clicked.connect(self.compute_scores)
         ctrl_layout.addWidget(self.compute_button)
 
-        self.report_button = QPushButton("Generate Report…")
+        self.report_button = QPushButton("Сформировать отчёт…")
         self.report_button.clicked.connect(self.generate_report)
         ctrl_layout.addWidget(self.report_button)
 
@@ -153,7 +153,13 @@ class MainWindow(QMainWindow):
                 item = QStandardItem(str(value))
                 # Align numeric columns to the right for readability
                 if isinstance(value, (int, float)):
-                    item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+                    if hasattr(Qt, "AlignmentFlag"):
+                        align_vcenter = Qt.AlignmentFlag.AlignVCenter
+                        align_right = Qt.AlignmentFlag.AlignRight
+                    else:
+                        align_vcenter = Qt.AlignVCenter
+                        align_right = Qt.AlignRight
+                    item.setTextAlignment(align_vcenter | align_right)
                 model.setItem(row_idx, col_idx, item)
         self.model = model
         self.table_view.setModel(model)
@@ -168,64 +174,64 @@ class MainWindow(QMainWindow):
         programme = self.program_combo.currentText()
         day = self.day_combo.currentText()
         if not programme or not day:
-            QMessageBox.warning(self, "Missing selection", "Please select both a programme and a day before loading data.")
+            QMessageBox.warning(self, "Не выбраны параметры", "Перед загрузкой данных выберите направление и день.")
             return
-        path, _ = QFileDialog.getOpenFileName(self, "Select CSV file", str(Path.home()), "CSV files (*.csv)")
+        path, _ = QFileDialog.getOpenFileName(self, "Выберите CSV-файл", str(Path.home()), "CSV files (*.csv)")
         if not path:
             return
         try:
             df = pd.read_csv(path)
         except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Failed to read CSV file:\n{exc}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось прочитать CSV-файл:\n{exc}")
             return
         # Validate columns
         required_cols = {'ID', 'Consent', 'Priority', 'Physics', 'Russian', 'Math', 'Achievements', 'Total'}
         if not required_cols.issubset(df.columns):
             QMessageBox.critical(
                 self,
-                "Invalid file",
-                f"CSV must contain the following columns: {', '.join(sorted(required_cols))}",
+                "Некорректный файл",
+                f"CSV должен содержать следующие столбцы: {', '.join(sorted(required_cols))}",
             )
             return
         try:
             self.db.load_list_from_dataframe(programme, day, df)
         except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Failed to import list:\n{exc}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать список:\n{exc}")
             return
         # Refresh day combo in case this is a new day
         self._populate_days()
         self.refresh_table()
-        QMessageBox.information(self, "Success", "List imported successfully.")
+        QMessageBox.information(self, "Успешно", "Список успешно импортирован.")
 
     def compute_scores(self) -> None:
         """Compute and display passing scores for the selected day."""
         day = self.day_combo.currentText()
         if not day:
-            QMessageBox.warning(self, "Missing selection", "Please select a day to compute passing scores.")
+            QMessageBox.warning(self, "Не выбран день", "Выберите день для расчёта проходных баллов.")
             return
         scores = self.db.compute_passing_scores(day)
         # Build message string
         lines = []
         for prog in sorted(scores.keys()):
             score, admitted = scores[prog]
-            lines.append(f"{prog}: {score} (admitted {len(admitted)})")
-        QMessageBox.information(self, f"Passing scores for {day}", "\n".join(lines))
+            lines.append(f"{prog}: {score} (зачислено: {len(admitted)})")
+        QMessageBox.information(self, f"Проходные баллы за {day}", "\n".join(lines))
 
     def generate_report(self) -> None:
         """Generate a PDF report for the selected day."""
         day = self.day_combo.currentText()
         if not day:
-            QMessageBox.warning(self, "Missing selection", "Please select a day to generate a report.")
+            QMessageBox.warning(self, "Не выбран день", "Выберите день для формирования отчёта.")
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Save report as…", f"report_{day}.pdf", "PDF files (*.pdf)")
+        path, _ = QFileDialog.getSaveFileName(self, "Сохранить отчёт как…", f"otchet_{day}.pdf", "PDF files (*.pdf)")
         if not path:
             return
         try:
             self.reporter.generate(path, day)
         except Exception as exc:
-            QMessageBox.critical(self, "Error", f"Failed to generate report:\n{exc}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сформировать отчёт:\n{exc}")
             return
-        QMessageBox.information(self, "Report generated", f"Report saved to {path}")
+        QMessageBox.information(self, "Отчёт сформирован", f"Отчёт сохранён в файл: {path}")
 
 
 def run_gui(db_path: str) -> None:

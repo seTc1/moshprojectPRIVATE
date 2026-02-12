@@ -15,7 +15,7 @@ pytest is required to run these tests.
 
 import pandas as pd
 
-from admission_project.database import DatabaseManager
+from database import DatabaseManager
 
 
 def make_df(records):
